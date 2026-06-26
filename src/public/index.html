@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoForge</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="logo">⬡</span>
+          <span class="wordmark">Auto<span class="accent">Forge</span></span>
+        </div>
+        <div class="tagline">Autonomous engineering — idea → merged PR</div>
+        <button class="new-btn" id="newProjectBtn">＋ New project</button>
+        <div class="project-list" id="projectList"></div>
+        <a class="settings-link" href="/settings">⚙&nbsp;&nbsp;Settings &amp; API keys</a>
+        <div class="user-row">
+          <span class="avatar" id="userAvatar">U</span>
+          <span id="userEmail" class="muted" style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;"></span>
+          <a href="#" id="logoutBtn" style="color:var(--muted);font-size:12px;">Logout</a>
+        </div>
+      </aside>
+      <main class="workspace" id="workspace"></main>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

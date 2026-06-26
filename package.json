@@ -1,0 +1,29 @@
+{
+  "name": "autoforge",
+  "version": "1.0.0",
+  "description": "Autonomous GitHub project builder powered by Claude",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "@octokit/rest": "^21.1.1",
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "imapflow": "^1.0.191",
+    "mailparser": "^3.7.2",
+    "mammoth": "^1.9.0",
+    "mongoose": "^8.10.0",
+    "pdf-parse": "^1.1.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.0",
+    "openai": "^4.77.0",
+    "uuid": "^11.0.5",
+    "xlsx": "^0.18.5"
+  }
+}

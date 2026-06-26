@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoForge · Sign in</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="auth-split">
+      <!-- Left: brand + value proposition -->
+      <section class="auth-hero">
+        <div class="brand">
+          <span class="logo">⬡</span>
+          <span class="wordmark" style="font-size:18px;">Auto<span class="accent">Forge</span></span>
+        </div>
+        <h2>Your autonomous engineering team.</h2>
+        <p class="lead">
+          Describe what to build — or drop in a design. AutoForge plans the features, writes the code,
+          runs the tests, fixes its own mistakes, and ships merged pull requests to GitHub. Under your name.
+        </p>
+        <div class="feat-list">
+          <div class="feat"><span class="ic">🧠</span><div><b>Plans real features</b> from a prompt or an image.</div></div>
+          <div class="feat"><span class="ic">🛠️</span><div><b>Writes, runs &amp; self-corrects</b> code in a sandbox until tests pass.</div></div>
+          <div class="feat"><span class="ic">🔀</span><div><b>Opens &amp; merges pull requests</b> — full GitHub flow, your commits.</div></div>
+          <div class="feat"><span class="ic">🔌</span><div><b>OpenAI or Anthropic</b> — switch models any time.</div></div>
+        </div>
+        <div class="mock">
+          <div class="ml" style="color:var(--muted)">› building “Task Manager API”…</div>
+          <div class="ml">📦 Created repo · 📝 Prepared 6 features</div>
+          <div class="ml">🤖 User authentication (register, login, JWT)</div>
+          <div class="ml" style="color:var(--yellow)">🧪 Verifying… 🔧 fixing…</div>
+          <div class="ml" style="color:var(--green)">✅ Tests passed · ✅ PR #4 merged</div>
+          <div class="ml" style="color:var(--green)">🎉 Run completed</div>
+        </div>
+      </section>
+
+      <!-- Right: auth form -->
+      <section class="auth-form-side">
+        <div class="auth-card" style="border:none;box-shadow:none;padding:8px;">
+          <div class="brand"><span class="logo">⬡</span><h1>Welcome</h1></div>
+          <p class="muted" id="subtitle" style="margin-top:2px;">Sign in to your account.</p>
+          <form id="authForm" style="margin-top:18px;">
+            <div class="field" id="nameField" style="display:none;">
+              <input type="text" id="name" placeholder="Name (optional)" autocomplete="name" />
+            </div>
+            <div class="field"><input type="email" id="email" placeholder="Email" autocomplete="email" required /></div>
+            <div class="field"><input type="password" id="password" placeholder="Password" autocomplete="current-password" required /></div>
+            <button class="btn primary" type="submit" id="submitBtn" style="width:100%;justify-content:center;">Sign in</button>
+            <div class="test-result err" id="err"></div>
+          </form>
+          <p class="muted" style="margin-top:14px;">
+            <span id="toggleText">New here?</span>
+            <a href="#" id="toggleLink" style="color:var(--brand);font-weight:500;">Create an account</a>
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      let mode = location.pathname === '/register' ? 'register' : 'login';
+      const $ = (id) => document.getElementById(id);
+
+      function render() {
+        const isReg = mode === 'register';
+        $('subtitle').textContent = isReg ? 'Create your free account.' : 'Sign in to your account.';
+        $('nameField').style.display = isReg ? '' : 'none';
+        $('submitBtn').textContent = isReg ? 'Create account' : 'Sign in';
+        $('toggleText').textContent = isReg ? 'Already have an account?' : 'New here?';
+        $('toggleLink').textContent = isReg ? 'Sign in' : 'Create an account';
+        $('password').autocomplete = isReg ? 'new-password' : 'current-password';
+      }
+      $('toggleLink').addEventListener('click', (e) => { e.preventDefault(); mode = mode === 'login' ? 'register' : 'login'; render(); $('err').textContent = ''; });
+
+      $('authForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        $('submitBtn').disabled = true;
+        const body = { email: $('email').value, password: $('password').value };
+        if (mode === 'register') body.name = $('name').value;
+        const res = await fetch('/api/auth/' + mode, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (data.ok) { window.location.href = '/'; }
+        else { $('err').textContent = data.error || 'Failed'; $('submitBtn').disabled = false; }
+      });
+
+      render();
+    </script>
+  </body>
+</html>

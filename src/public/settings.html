@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoForge · Settings</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand-row"><span class="logo">⬡</span><h1>Settings &amp; API keys</h1></div>
+      <div class="actions"><a class="btn" href="/">← Dashboard</a></div>
+    </header>
+
+    <main>
+      <form id="settingsForm">
+        <div class="group">
+          <h3>🤖 AI provider</h3>
+          <div class="grid2">
+            <div class="field">
+              <label>Provider</label>
+              <select name="llm_provider" id="llm_provider"></select>
+            </div>
+            <div class="field" id="key-openai">
+              <label>OpenAI API key</label>
+              <input type="password" name="openai_api_key" autocomplete="off" />
+            </div>
+            <div class="field" id="key-anthropic">
+              <label>Anthropic API key</label>
+              <input type="password" name="anthropic_api_key" autocomplete="off" />
+            </div>
+          </div>
+          <button type="button" class="btn" data-test="llm">Test AI provider</button>
+          <div class="test-result" id="res-llm"></div>
+        </div>
+
+        <div class="group">
+          <h3>🧠 Model &amp; Priority</h3>
+          <div class="grid2">
+            <div class="field">
+              <label>Priority tier (quality vs. cost)</label>
+              <select name="priority_tier" id="priority_tier"></select>
+            </div>
+            <div class="field">
+              <label>Default model</label>
+              <select name="model_default" id="model_default"></select>
+            </div>
+            <div class="field">
+              <label>Problem-finder model (override)</label>
+              <select name="model_problemFinder" id="model_problemFinder"></select>
+            </div>
+            <div class="field">
+              <label>Code-generator model (override)</label>
+              <select name="model_codeGenerator" id="model_codeGenerator"></select>
+            </div>
+          </div>
+          <p class="muted">Models depend on the selected provider. Per-stage overrides win over the default; the default falls back to the tier's model. (Effort tiers apply to Anthropic only; for OpenAI the tier just selects the default model.)</p>
+        </div>
+
+        <div class="group">
+          <h3>🐙 GitHub</h3>
+          <div class="inline">
+            <div class="field">
+              <label>Personal Access Token (repo + workflow scope)</label>
+              <input type="password" name="github_token" autocomplete="off" />
+            </div>
+            <button type="button" class="btn" data-test="github">Test GitHub Token</button>
+          </div>
+          <div class="test-result" id="res-github"></div>
+          <div class="grid2">
+            <div class="field"><label>GitHub username (for commits)</label><input name="github_username" /></div>
+            <div class="field"><label>Git commit email</label><input name="github_email" /></div>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>✉️ Email (Gmail)</h3>
+          <div class="grid2">
+            <div class="field"><label>Gmail address (sender)</label><input name="gmail_user" /></div>
+            <div class="field"><label>Gmail app password</label><input type="password" name="gmail_app_password" autocomplete="off" /></div>
+            <div class="field"><label>Your email (where queries go)</label><input name="user_email" /></div>
+          </div>
+          <button type="button" class="btn" data-test="email">Send Test Email</button>
+          <div class="test-result" id="res-email"></div>
+        </div>
+
+        <div class="group">
+          <h3>⚙️ Run configuration</h3>
+          <p class="muted" style="margin-top:0;">Project ideas, prompts, modes &amp; target repos now live inside each <b>project</b> (left sidebar on the dashboard). These are global defaults.</p>
+          <div class="grid2">
+            <div class="field">
+              <label>Scheduled auto-run frequency</label>
+              <select name="run_frequency">
+                <option value="daily">Daily (9 AM)</option>
+                <option value="twice_daily">Twice daily (9 AM, 9 PM)</option>
+                <option value="weekly">Weekly (Mon 9 AM)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Self-correcting verify loop</label>
+              <select name="verify_enabled">
+                <option value="true">On — run &amp; fix code locally before commit</option>
+                <option value="false">Off — commit code as generated</option>
+              </select>
+            </div>
+            <div class="field"><label>Max fix attempts per issue</label><input type="number" name="max_fix_attempts" min="0" max="6" /></div>
+          </div>
+          <p class="muted">⚠️ With the verify loop ON, AutoForge runs the AI-generated code (incl. <code>npm install</code>) on this machine to test it. Only run AutoForge in a trusted/sandboxed environment.</p>
+        </div>
+
+        <button type="submit" class="btn primary">Save Settings</button>
+        <span class="test-result" id="saveResult"></span>
+      </form>
+    </main>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      let META = {};
+      let savedModels = {};
+
+      function modelsForProvider(key) {
+        const p = (META.providers || []).find((x) => x.key === key);
+        return p ? p.models : [];
+      }
+
+      function fillModelSelect(id, options, value) {
+        const el = document.getElementById(id);
+        const head = id === 'model_default'
+          ? '<option value="">(use tier model)</option>'
+          : '<option value="">(use default)</option>';
+        el.innerHTML = head + options.map((m) => `<option value="${m}">${m}</option>`).join('');
+        el.value = options.includes(value) ? value : '';
+      }
+
+      // Repopulate model dropdowns + toggle key fields for the chosen provider.
+      function applyProvider(key) {
+        const options = modelsForProvider(key);
+        fillModelSelect('model_default', options, savedModels.default);
+        fillModelSelect('model_problemFinder', options, savedModels.problemFinder);
+        fillModelSelect('model_codeGenerator', options, savedModels.codeGenerator);
+        document.getElementById('key-openai').style.display = key === 'openai' ? '' : 'none';
+        document.getElementById('key-anthropic').style.display = key === 'anthropic' ? '' : 'none';
+      }
+
+      async function load() {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        META = data;
+        const s = data.settings;
+        const form = $('#settingsForm');
+        for (const [k, v] of Object.entries(s)) {
+          const input = form.elements[k];
+          if (input && input.type !== 'password') input.value = v ?? '';
+        }
+        // Show whether each secret is already saved (values are never sent back).
+        const MASKED = '••••••••';
+        ['openai_api_key', 'anthropic_api_key', 'github_token', 'gmail_app_password'].forEach((n) => {
+          const el = form.elements[n];
+          if (!el) return;
+          el.placeholder = s[n] === MASKED ? 'saved ✓ — leave blank to keep' : 'not set';
+        });
+        // Provider dropdown
+        const prov = document.getElementById('llm_provider');
+        prov.innerHTML = data.providers.map((p) => `<option value="${p.key}">${p.label}</option>`).join('');
+        prov.value = s.llm_provider || 'openai';
+        // Priority tier
+        document.getElementById('priority_tier').innerHTML = data.priorityTiers
+          .map((t) => `<option value="${t}">${t}</option>`)
+          .join('');
+        document.getElementById('priority_tier').value = s.priority_tier || 'balanced';
+        // Models (remember saved values to re-apply on provider switch)
+        try { savedModels = JSON.parse(s.models || '{}'); } catch { savedModels = {}; }
+        applyProvider(prov.value);
+        prov.addEventListener('change', () => applyProvider(prov.value));
+      }
+
+      $('#settingsForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const body = {};
+        for (const el of form.elements) {
+          if (!el.name || el.type === 'button' || el.type === 'submit') continue;
+          if (el.name.startsWith('model_')) continue; // handled below
+          // Skip empty password fields so we don't overwrite saved secrets.
+          if (el.type === 'password' && el.value === '') continue;
+          body[el.name] = el.value;
+        }
+        body.models = JSON.stringify({
+          default: document.getElementById('model_default').value,
+          problemFinder: document.getElementById('model_problemFinder').value,
+          codeGenerator: document.getElementById('model_codeGenerator').value,
+        });
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        const r = $('#saveResult');
+        r.textContent = data.ok ? '✓ Saved' : `✗ ${data.error}`;
+        r.className = 'test-result ' + (data.ok ? 'ok' : 'err');
+        if (data.ok) setTimeout(() => (r.textContent = ''), 2500);
+      });
+
+      document.querySelectorAll('[data-test]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const kind = btn.dataset.test;
+          const out = $('#res-' + kind);
+          out.textContent = 'Testing…';
+          out.className = 'test-result';
+          const form = $('#settingsForm');
+          const body = {};
+          // Include the relevant secret if the user just typed one.
+          if (kind === 'llm') {
+            const provider = form.elements.llm_provider.value;
+            body.llm_provider = provider;
+            const keyEl = provider === 'anthropic' ? form.elements.anthropic_api_key : form.elements.openai_api_key;
+            body[provider === 'anthropic' ? 'anthropic_api_key' : 'openai_api_key'] = keyEl.value;
+          }
+          if (kind === 'github') body.github_token = form.elements.github_token.value;
+          if (kind === 'email') {
+            body.gmail_user = form.elements.gmail_user.value;
+            body.user_email = form.elements.user_email.value;
+            body.gmail_app_password = form.elements.gmail_app_password.value;
+          }
+          const res = await fetch('/api/settings/test-' + kind, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            out.textContent = '✓ ' + (data.login ? `GitHub: ${data.login}` : data.reply ? `${data.provider || 'AI'} (${data.model}): ${data.reply}` : data.to ? `Sent to ${data.to}` : 'OK');
+            out.className = 'test-result ok';
+          } else {
+            out.textContent = '✗ ' + data.error;
+            out.className = 'test-result err';
+          }
+        });
+      });
+
+      load();
+    </script>
+  </body>
+</html>

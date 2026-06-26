@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoForge · Run detail</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand-row"><span class="logo">⬡</span><h1>Run detail</h1></div>
+      <div class="actions"><a class="btn" href="/">← Dashboard</a></div>
+    </header>
+
+    <main>
+      <div class="section-title">Summary</div>
+      <div class="card run-status">
+        <div class="row"><span class="label">Project</span><span id="project">—</span></div>
+        <div class="row"><span class="label">Status</span><span id="status">—</span></div>
+        <div class="row"><span class="label">Repo</span><span id="repo">—</span></div>
+        <div class="row"><span class="label">Started</span><span id="started">—</span></div>
+        <div class="row"><span class="label">Error</span><span id="error" class="err">—</span></div>
+      </div>
+
+      <div class="section-title">Tasks · what changed &amp; what was pushed</div>
+      <div class="card" style="padding:0;">
+        <table>
+          <thead>
+            <tr><th>Task</th><th>Status</th><th>Files changed</th><th>Branch</th><th>Pull request</th></tr>
+          </thead>
+          <tbody id="tasks">
+            <tr><td colspan="5" class="muted" style="padding:14px;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-title">Generated files — browse the code</div>
+      <div class="card" style="padding:0;">
+        <div class="browser">
+          <div id="fileTree" class="file-tree"><span class="muted" style="padding:12px;display:block;">Loading files…</span></div>
+          <div id="fileView" class="file-view"><span class="muted">Select a file to view its code.</span></div>
+        </div>
+      </div>
+
+      <div class="section-title">Full activity log</div>
+      <div id="log"></div>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const params = new URLSearchParams(location.search);
+      const runId = params.get('id');
+
+      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const fmt = (d) => { try { return new Date(d).toLocaleString(); } catch { return ''; } };
+
+      async function load() {
+        if (!runId) { $('project').textContent = 'No run id.'; return; }
+        const res = await fetch('/api/runs/' + encodeURIComponent(runId));
+        if (!res.ok) { $('project').textContent = 'Run not found.'; return; }
+        const { run, logs, issues } = await res.json();
+
+        $('project').textContent = run.problemTitle || run.repoName || '—';
+        $('status').innerHTML = `<span class="pill ${run.status === 'completed' ? 'completed' : run.status === 'failed' ? 'failed' : 'running'}">${esc(run.status)}</span>`;
+        $('repo').innerHTML = run.repoUrl ? `<a href="${esc(run.repoUrl)}" target="_blank">${esc(run.repoName)} →</a>` : esc(run.repoName || '—');
+        $('started').textContent = fmt(run.startedAt);
+        $('error').textContent = run.error || '—';
+
+        // Tasks
+        const repoBase = run.repoUrl ? run.repoUrl.replace(/\/$/, '') : '';
+        if (!issues.length) {
+          $('tasks').innerHTML = '<tr><td colspan="5" class="muted" style="padding:14px;">No tasks recorded.</td></tr>';
+        } else {
+          $('tasks').innerHTML = issues
+            .map((it) => {
+              const files = (it.files || [])
+                .map((f) => (repoBase && it.branch ? `<a href="${esc(repoBase)}/blob/${esc(it.branch)}/${esc(f)}" target="_blank">${esc(f)}</a>` : esc(f)))
+                .join('<br>') || '<span class="muted">—</span>';
+              const pr = it.prUrl ? `<a href="${esc(it.prUrl)}" target="_blank">PR #${it.prNumber} →</a>` : '<span class="muted">—</span>';
+              const branch = it.branch ? `<code>${esc(it.branch)}</code>` : '<span class="muted">—</span>';
+              const title = (it.githubIssueNumber ? `#${it.githubIssueNumber} ` : '') + esc(it.title);
+              return `<tr>
+                <td>${title}</td>
+                <td><span class="pill ${it.status === 'completed' || it.status === 'pr_open' || it.status === 'verified' ? 'completed' : it.status === 'failed' ? 'failed' : 'running'}">${esc(it.status)}</span></td>
+                <td style="font-family:ui-monospace,monospace;font-size:12px;">${files}</td>
+                <td>${branch}</td>
+                <td>${pr}</td>
+              </tr>`;
+            })
+            .join('');
+        }
+
+        // Log
+        $('log').innerHTML = logs
+          .map((l) => `<div class="log-line log-${l.level || 'info'}"><span class="ts">[${fmt(l.createdAt)}]</span>${esc(l.message)}</div>`)
+          .join('');
+        $('log').scrollTop = $('log').scrollHeight;
+      }
+
+      // --- File browser ---------------------------------------------------
+      function renderTree(paths) {
+        const tree = $('fileTree');
+        if (!paths.length) {
+          tree.innerHTML = '<span class="muted" style="padding:12px;display:block;">No files yet.</span>';
+          return;
+        }
+        // Group by top-level folder for a structured, indented view.
+        tree.innerHTML = paths
+          .map((p) => {
+            const depth = (p.match(/\//g) || []).length;
+            const name = p.split('/').pop();
+            const pad = 12 + depth * 14;
+            return `<div class="row" data-path="${esc(p)}" style="padding-left:${pad}px" title="${esc(p)}">${esc(name)}</div>`;
+          })
+          .join('');
+        tree.querySelectorAll('.row').forEach((row) => {
+          row.addEventListener('click', () => openFile(row.dataset.path, row));
+        });
+      }
+
+      async function openFile(path, row) {
+        document.querySelectorAll('#fileTree .row').forEach((r) => r.classList.remove('active'));
+        if (row) row.classList.add('active');
+        const view = $('fileView');
+        view.textContent = 'Loading…';
+        try {
+          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/file?path=${encodeURIComponent(path)}`);
+          const data = await res.json();
+          view.textContent = data.content || '(empty file)';
+        } catch {
+          view.textContent = 'Could not load file.';
+        }
+      }
+
+      async function loadTree() {
+        try {
+          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/tree`);
+          if (!res.ok) {
+            $('fileTree').innerHTML = '<span class="muted" style="padding:12px;display:block;">No repo yet.</span>';
+            return;
+          }
+          const data = await res.json();
+          renderTree(data.paths || []);
+          // Auto-open a sensible first file.
+          const first = (data.paths || []).find((p) => /src\/index|index\.js|README/i.test(p)) || (data.paths || [])[0];
+          if (first) {
+            const row = [...document.querySelectorAll('#fileTree .row')].find((r) => r.dataset.path === first);
+            openFile(first, row);
+          }
+        } catch {
+          $('fileTree').innerHTML = '<span class="muted" style="padding:12px;display:block;">Could not load files.</span>';
+        }
+      }
+
+      load();
+      loadTree();
+      // Refresh the run summary/log while active; tree refreshes less often.
+      setInterval(load, 5000);
+      setInterval(loadTree, 20000);
+    </script>
+  </body>
+</html>
