@@ -41,7 +41,7 @@ function buildInitialPrompt({ target, task, problem, projectFiles, extraContext 
   const arch = (problem.files_to_create || []).map((f) => `- ${f.path}: ${f.purpose}`).join('\n');
   let user = `Resolve this task by writing complete, working code.
 
-Repo: ${target.commitRepo}
+Repo: ${target.commitRepo}${target.repoUrl ? `\nRepository URL: ${target.repoUrl} (use this exact URL in README deploy buttons / links)` : ''}
 ${task.number ? `Issue #${task.number}: ` : 'Task: '}${task.title}
 Description: ${task.body || ''}
 

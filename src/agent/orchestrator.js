@@ -78,7 +78,7 @@ async function planRun(runId, settings, project, run) {
     const target = {
       commitOwner: owner, commitRepo: name, commitBase: base,
       prOwner: owner, prRepo: name, prBase: base, headPrefix: '',
-      canMerge: true, issueOwner: owner, issueRepo: name, createIssues: false,
+      canMerge: true, issueOwner: owner, issueRepo: name, createIssues: false, repoUrl: meta.html_url,
     };
     return { problem, tasks: problem.tasks, target, sandboxDir };
   }
@@ -106,7 +106,7 @@ async function planRun(runId, settings, project, run) {
     const target = {
       commitOwner: self, commitRepo: repo.name, commitBase: base,
       prOwner: self, prRepo: repo.name, prBase: base, headPrefix: '',
-      canMerge: true, issueOwner: self, issueRepo: repo.name, createIssues: true,
+      canMerge: true, issueOwner: self, issueRepo: repo.name, createIssues: true, repoUrl: repo.html_url,
     };
     return { problem, tasks, target, sandboxDir: await sandbox.createWorkspace(runId) };
   }
@@ -136,7 +136,7 @@ async function planRun(runId, settings, project, run) {
     const target = {
       commitOwner: parsed.owner, commitRepo: parsed.repo, commitBase: upstreamBase,
       prOwner: parsed.owner, prRepo: parsed.repo, prBase: upstreamBase, headPrefix: '',
-      canMerge: true, issueOwner: parsed.owner, issueRepo: parsed.repo, createIssues: problem.createIssues,
+      canMerge: true, issueOwner: parsed.owner, issueRepo: parsed.repo, createIssues: problem.createIssues, repoUrl: meta.html_url,
     };
     return { problem, tasks: problem.tasks, target, sandboxDir };
   }
@@ -148,7 +148,7 @@ async function planRun(runId, settings, project, run) {
   const target = {
     commitOwner: self, commitRepo: fork.name, commitBase: fork.default_branch || upstreamBase,
     prOwner: parsed.owner, prRepo: parsed.repo, prBase: upstreamBase, headPrefix: `${self}:`,
-    canMerge: false, issueOwner: parsed.owner, issueRepo: parsed.repo, createIssues: false,
+    canMerge: false, issueOwner: parsed.owner, issueRepo: parsed.repo, createIssues: false, repoUrl: meta.html_url,
   };
   return { problem, tasks: problem.tasks, target, sandboxDir };
 }

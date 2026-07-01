@@ -153,18 +153,37 @@ function testFailureSummary(out, failCount) {
   return `${head}\n${detail}\n\n--- output tail ---\n${out.trim().slice(-2500)}`;
 }
 
+// Find every app root (root + immediate subdirs like backend/ frontend/ that
+// have their own package.json).
+async function packageRoots(dir) {
+  const roots = [];
+  if (existsSync(path.join(dir, 'package.json'))) roots.push({ dir, label: '.' });
+  let entries = [];
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    /* ignore */
+  }
+  for (const e of entries) {
+    if (e.isDirectory() && !IGNORE_DIRS.has(e.name) && existsSync(path.join(dir, e.name, 'package.json'))) {
+      roots.push({ dir: path.join(dir, e.name), label: e.name });
+    }
+  }
+  return roots;
+}
+
 // Verify the project. Returns { ok, output, stage, failCount }.
 //   stage: 'syntax' | 'install' | 'test' | 'build' | 'none'
 //   failCount: number of failing tests (test stage); -1 for hard failures
-//              (syntax/install) that must always be fixed; 0 when ok.
-// onStep(message) is called as each phase starts, for live progress logging.
+//              (syntax/install/build); 0 when ok.
+// Handles a monorepo with separate backend/ and frontend/ apps.
 export async function verify(dir, onStep = () => {}) {
   const files = await walk(dir);
-  const jsFiles = files.filter((f) => /\.(js|mjs|cjs)$/.test(f));
+  const jsFiles = files.filter((f) => /\.(js|mjs|cjs|jsx)$/.test(f) && !f.includes('frontend/'));
 
-  // 1. Syntax checks (hard fail).
+  // 1. Syntax checks on plain JS (skip JSX/frontend — the build handles those).
   const syntaxErrors = [];
-  for (const rel of jsFiles) {
+  for (const rel of jsFiles.filter((f) => /\.(js|mjs|cjs)$/.test(f))) {
     const { code, output } = await run(process.execPath, ['--check', rel], { cwd: dir, timeout: 15000 });
     if (code !== 0) syntaxErrors.push(`Syntax error in ${rel}:\n${output.trim()}`);
   }
@@ -172,50 +191,63 @@ export async function verify(dir, onStep = () => {}) {
     return { ok: false, stage: 'syntax', failCount: -1, output: syntaxErrors.join('\n\n') };
   }
 
-  const pkgPath = path.join(dir, 'package.json');
-  if (!existsSync(pkgPath)) {
+  const roots = await packageRoots(dir);
+  if (!roots.length) {
     return { ok: true, stage: 'none', failCount: 0, output: 'Syntax OK (no package.json).' };
   }
 
-  let pkg = {};
-  try {
-    pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
-  } catch (e) {
-    return { ok: false, stage: 'syntax', failCount: -1, output: `package.json is not valid JSON: ${e.message}` };
-  }
+  const testEnv = { CI: 'true', npm_config_cache: NPM_CACHE };
+  await mkdir(NPM_CACHE, { recursive: true });
+  let totalFail = 0;
+  const testOutputs = [];
+  const passed = [];
 
-  // 2. Install (hard fail).
-  const hasDeps =
-    Object.keys(pkg.dependencies || {}).length || Object.keys(pkg.devDependencies || {}).length;
-  if (hasDeps) {
-    onStep('📦 Installing dependencies (first run can take ~1 min)…');
-    await mkdir(NPM_CACHE, { recursive: true });
-    const install = await run(
-      'npm',
-      ['install', '--no-audit', '--no-fund', '--loglevel=error', '--cache', NPM_CACHE],
-      { cwd: dir, timeout: 180000 }
-    );
-    if (install.code !== 0) {
-      return { ok: false, stage: 'install', failCount: -1, output: `npm install failed:\n${npmCause(install.output)}` };
+  for (const root of roots) {
+    let pkg = {};
+    try {
+      pkg = JSON.parse(await readFile(path.join(root.dir, 'package.json'), 'utf8'));
+    } catch (e) {
+      return { ok: false, stage: 'syntax', failCount: -1, output: `${root.label}/package.json is not valid JSON: ${e.message}` };
+    }
+    const scripts = pkg.scripts || {};
+    const hasDeps = Object.keys(pkg.dependencies || {}).length || Object.keys(pkg.devDependencies || {}).length;
+
+    // Install (hard fail).
+    if (hasDeps) {
+      onStep(`📦 Installing ${root.label} dependencies (first run can take ~1 min)…`);
+      const install = await run('npm', ['install', '--no-audit', '--no-fund', '--loglevel=error', '--cache', NPM_CACHE], { cwd: root.dir, timeout: 180000 });
+      if (install.code !== 0) {
+        return { ok: false, stage: 'install', failCount: -1, output: `npm install failed in ${root.label}/:\n${npmCause(install.output)}` };
+      }
+    }
+
+    // Build (hard fail) — the app must compile.
+    if (scripts.build) {
+      onStep(`🏗️  Building ${root.label}…`);
+      const b = await run('npm', ['run', 'build'], { cwd: root.dir, timeout: 240000, env: testEnv });
+      if (b.code !== 0) {
+        return { ok: false, stage: 'build', failCount: 1, output: `build failed in ${root.label}/:\n${b.output.trim().slice(-2500)}` };
+      }
+      passed.push(`${root.label}: build`);
+    }
+
+    // Test (soft fail — baseline-aware in the caller).
+    const realTest = scripts.test && !/no test specified/i.test(scripts.test);
+    if (realTest) {
+      onStep(`🧪 Testing ${root.label}…`);
+      const t = await run('npm', ['test'], { cwd: root.dir, timeout: 180000, env: testEnv });
+      if (t.code !== 0) {
+        const n = parseFailCount(t.output);
+        totalFail += n;
+        testOutputs.push(`[${root.label}] ${testFailureSummary(t.output, n)}`);
+      } else {
+        passed.push(`${root.label}: tests`);
+      }
     }
   }
 
-  // 3. Test / build (soft fail — failCount lets callers ignore pre-existing failures).
-  const testEnv = { CI: 'true', npm_config_cache: NPM_CACHE };
-  const scripts = pkg.scripts || {};
-  const realTest = scripts.test && !/no test specified/i.test(scripts.test);
-  if (realTest) {
-    onStep('🧪 Running tests…');
-    const t = await run('npm', ['test'], { cwd: dir, timeout: 180000, env: testEnv });
-    if (t.code === 0) return { ok: true, stage: 'test', failCount: 0, output: 'Tests passed.' };
-    const failCount = parseFailCount(t.output);
-    return { ok: false, stage: 'test', failCount, output: testFailureSummary(t.output, failCount) };
+  if (totalFail > 0) {
+    return { ok: false, stage: 'test', failCount: totalFail, output: testOutputs.join('\n\n') };
   }
-  if (scripts.build) {
-    const b = await run('npm', ['run', 'build'], { cwd: dir, timeout: 180000, env: testEnv });
-    if (b.code === 0) return { ok: true, stage: 'build', failCount: 0, output: 'Build passed.' };
-    return { ok: false, stage: 'build', failCount: 1, output: `npm run build failed:\n${b.output.trim().slice(-2500)}` };
-  }
-
-  return { ok: true, stage: 'none', failCount: 0, output: 'Syntax OK, dependencies installed (no test/build).' };
+  return { ok: true, stage: 'none', failCount: 0, output: passed.length ? `Passed — ${passed.join(', ')}.` : 'Syntax OK.' };
 }

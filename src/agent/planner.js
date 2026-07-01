@@ -18,14 +18,16 @@ ${spec}
 Domain: ${domain}${docsBlock}
 ${images.length ? '\n(Images are attached — study them.)' : ''}
 
+First decide the project type: full-stack web app (React + Vite frontend AND Express backend), backend/API only, or CLI. If the request implies any UI, choose full-stack and design BOTH tiers.
+
 Work step by step and cover, in Markdown:
-1. Restated requirements & explicit assumptions
+1. Restated requirements, project type (full-stack / backend / CLI), and assumptions
 2. Core domain entities and the data model (fields, relationships)
-3. Architecture: components, folder structure, how data flows
-4. Key user/API flows
-5. Edge cases, failure modes, and how to handle them
+3. Architecture: frontend + backend components, folder structure, how data flows between them
+4. Key user flows (UI screens ↔ API endpoints) and the API surface
+5. Edge cases, failure modes, and how to handle them (frontend states too: loading/empty/error)
 6. Security, validation, and configuration concerns
-7. Testing strategy (what to test)
+7. Testing strategy (backend tests) and that the frontend must build cleanly
 8. An ordered, incremental build approach (which feature first and why)
 
 Be concrete and specific to THIS project — no generic filler.`;
@@ -37,7 +39,7 @@ Be concrete and specific to THIS project — no generic filler.`;
   }
 }
 
-const SYSTEM = `You are a principal software architect. You design substantial, real-world backend/API/CLI systems and break them into a coherent, ordered set of implementation issues that together build the COMPLETE system with working code and passing tests. You reason carefully about data models, edge cases, and how the pieces fit before deciding the breakdown.
+const SYSTEM = `You are a principal software architect. You design substantial, real-world systems — full-stack web apps (React frontend + Express backend), backend APIs, or CLIs — and break them into a coherent, ordered set of implementation issues that together build the COMPLETE system with working code, passing tests, and a compiling frontend. If the request implies any user interface, you design BOTH frontend and backend and wire them together. You reason carefully about data models, edge cases, and how the pieces fit before deciding the breakdown.
 
 ${CONVENTIONS}`;
 
@@ -70,11 +72,13 @@ export async function buildPlan({ brief, trends, domain, maxIssues, images = [],
 
   const user = `${spec}${imageNote}${docsBlock}${analysisBlock}
 
-Design a substantial system (not a toy). Produce a complete plan with a real architecture and ${maxIssues} ordered issues that together implement the WHOLE thing with working code and passing tests.
+Design a substantial system (not a toy). Produce a complete plan with a real architecture and ${maxIssues} ordered issues that together implement the WHOLE thing with working code, passing tests, and (if full-stack) a frontend that builds cleanly.
 
 CRITICAL — one issue per FEATURE/MODULE, not per file or per trivial tweak:
-- Issue 1 MUST scaffold the project: package.json (with a runnable "test" script), folder structure, base config, .gitignore, README, .env.example.
-- Every issue AFTER #1 must implement ONE complete, user-facing feature/module end to end — its data model + business logic + API/CLI surface + tests, all in that one issue. Name each issue by the feature (e.g. "User authentication (register, login, JWT)", "Task management (CRUD, status, assignees)", "Order management", "Rider assignment").
+- Build only what the request needs: backend/ folder, frontend/ folder, or both — kept SEPARATE, each a self-contained app with its OWN package.json. Choose the best current stack for each (don't force a fixed one).
+- Issue 1 MUST scaffold the needed app(s): each folder's package.json (backend "test" script; frontend "build" script), folder structure, base config, .gitignore, README, .env.example.
+- Every issue AFTER #1 implements ONE complete, user-facing feature END TO END. If the project has both tiers, that means the backend part (model + API) AND the matching frontend part (screen/components calling the API) in the SAME issue — data model + logic + API + UI + tests. File paths must be prefixed with backend/ or frontend/.
+- The LAST issue MUST set up deployment (no Docker): create the Vercel config for the frontend and the Railway config for the backend (only for the tiers that exist), make the frontend's API URL env-configurable, and add a "Deployment" section to the README with the steps and required env vars. Name each issue by the feature (e.g. "User authentication (register, login, JWT)", "Task management (CRUD, status, assignees)", "Order management", "Rider assignment").
 - Do NOT create issues for a single file, or for trivial/infra chores like "add env validation", "add a config file", "add error middleware" — fold those into the relevant feature or the scaffolding issue.
 - Pick the most important ${maxIssues - 1} features that fit; each issue body lists the files it creates/modifies and what each must do.
 

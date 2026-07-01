@@ -1,32 +1,65 @@
-// Standard conventions applied to EVERY generated project, so the output is
-// consistent and reviewable regardless of provider (OpenAI or Anthropic).
-export const CONVENTIONS = `PROJECT CONVENTIONS (follow these in every file, every project):
+// Standard conventions applied to EVERY generated project. They keep output
+// consistent and reviewable, while letting the model choose the best-fit stack.
+export const CONVENTIONS = `PROJECT CONVENTIONS (follow these in every project):
 
-Stack & structure:
-- Node.js 20+, ES modules ("type": "module" in package.json).
-- Standard layout:
-    src/            application source
-      config/       configuration loaded from environment (dotenv)
-      routes/       HTTP routes / CLI commands (entry surfaces)
-      services/     business logic
-      models/       data models / schemas
-      utils/        shared helpers
-    tests/          automated tests
-    package.json, README.md, .env.example, .gitignore
-- One responsibility per module; clear named exports; no dead code.
+WHAT TO BUILD — decide from the request:
+- If only a backend / API / CLI is asked for → build ONLY the backend.
+- If only a frontend / UI is asked for → build ONLY the frontend.
+- If it is a product needing a UI and a server → build BOTH.
 
-Quality:
+TOP-LEVEL LAYOUT — the repo root contains only what is needed, as SEPARATE apps:
+    backend/     (only if a server/API/CLI is needed)
+    frontend/    (only if a UI is needed)
+    README.md, .gitignore
+- Keep backend and frontend strictly SEPARATE — never mix their files.
+- Each folder is a self-contained app with its OWN package.json, dependencies,
+  and scripts. Organise sensible child folders under each.
+- If the project is backend-only or frontend-only, create just that one folder.
+
+CHOOSE THE BEST STACK AT BUILD TIME — do not force a fixed, predefined stack.
+Pick the current, industry-standard tools that best fit THIS project, and state
+the choice + why in DESIGN.md. Reasonable options (use latest stable conventions):
+- Backend: Express or Fastify (Node, ES modules) for APIs; plain Node for CLIs.
+- Frontend: React + Vite, Next.js, or Vue + Vite — whatever suits the product.
+- Data: SQLite/Postgres via an ORM, MongoDB, or in-memory — justify the pick.
+
+BACKEND folder:
+- ES modules; a clear structure such as src/{config,routes,services,models,middleware} + tests/.
+- package.json "test" script that runs ONCE and exits — "node --test" (preferred,
+  no extra deps) or "vitest run" (never bare "vitest", which watches and hangs).
+- Config & secrets from environment variables (dotenv); .env.example lists them.
+
+FRONTEND folder:
+- Modern component structure: src/{components, pages|views, api, lib} + entry + index.html.
+- package.json "build" script that compiles cleanly (e.g. "vite build" / "next build").
+- Clean, modern, responsive UI with real states (loading / empty / error). Talk to
+  the backend through small api/ helpers — never hardcode server data in components.
+
+QUALITY (all code):
 - Real, complete implementations — never stubs, TODOs, or "..." placeholders.
-- Validate input at boundaries; handle errors with try/catch around async I/O.
-- Configuration & secrets come from environment variables (dotenv), never hardcoded.
-- package.json MUST have a runnable "test" script that runs ONCE and exits — never
-  a watch mode. Prefer Node's built-in test runner: "test": "node --test" (no extra
-  deps). If you use vitest, the script MUST be "vitest run" (never bare "vitest",
-  which watches and hangs); add vitest to devDependencies. Include at least one
-  meaningful test per feature, and the tests must pass.
-- README documents what it is, setup, and usage. .env.example lists required vars.
+- Validate inputs at boundaries; wrap async I/O in try/catch.
+- The "test" script must pass; any "build" script must compile.
+- Each app's README documents its setup, scripts, and usage.
 
-Authorship:
+DEPLOYMENT (generate config files only — do NOT dockerise, no Dockerfile):
+- Frontend → Vercel: add "frontend/vercel.json" configured for the chosen stack
+  (build command, output dir, and SPA rewrites so client routes work), plus any
+  needed env vars documented.
+- Backend → Railway: add "backend/railway.json" (Nixpacks builder) with the
+  build and start commands, and a "backend/Procfile" ("web: npm start") as a
+  fallback. The server must read PORT from process.env.
+- Backend-only project → Railway config only. Frontend-only → Vercel config only.
+- README "Deployment" section: include ONE-CLICK deploy buttons (no tokens
+  needed) plus concise steps and the env vars to set:
+    * Vercel (frontend): a "Deploy with Vercel" button linking to
+      https://vercel.com/new/clone?repository-url=<REPO_URL>&root-directory=frontend
+      — markdown: [![Deploy with Vercel](https://vercel.com/button)](<that url>)
+    * Railway (backend): a "Deploy on Railway" button linking to
+      https://railway.app/new — with steps to select this repo and set the
+      backend/ root, plus the env vars.
+  Use the real Repository URL provided. The frontend's API base URL must be
+  env-configurable (e.g. VITE_API_URL) so it points at the deployed backend.
+
+AUTHORSHIP:
 - The work must read as written by a human developer. Never mention AI, Claude,
-  OpenAI, language models, or "auto-generated"/"generated by" anywhere — not in
-  code, comments, commit messages, README, or docs.`;
+  OpenAI, language models, or "auto-generated"/"generated by" anywhere.`;
