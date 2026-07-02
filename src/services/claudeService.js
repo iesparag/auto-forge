@@ -95,6 +95,6 @@ export async function testConnection({ provider, apiKey, model } = {}) {
   const key = apiKey || settings[pdef.keyField];
   const m = model || pdef.tiers[settings.priority_tier]?.model || pdef.models[0];
   const backend = backendFor(prov);
-  const result = await backend.test(key, m);
+  const result = await withRetry(() => backend.test(key, m)); // retry transient "Premature close"
   return { ok: true, provider: prov, model: m, reply: result.reply };
 }
