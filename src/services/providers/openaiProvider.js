@@ -38,10 +38,13 @@ export async function complete({ apiKey, model, system, user, maxTokens = 16000,
 }
 
 export async function test(apiKey, model) {
-  const res = await client(apiKey).chat.completions.create({
+  const stream = await client(apiKey).chat.completions.create({
     model,
     max_completion_tokens: 16,
     messages: [{ role: 'user', content: 'Reply with the single word: pong' }],
+    stream: true,
   });
-  return { reply: (res.choices?.[0]?.message?.content || '').trim() };
+  let text = '';
+  for await (const chunk of stream) text += chunk.choices?.[0]?.delta?.content || '';
+  return { reply: text.trim() };
 }
