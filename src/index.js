@@ -1,4 +1,19 @@
 import 'dotenv/config';
+import { setGlobalDispatcher, Agent } from 'undici';
+// Tune the global fetch (undici) used by the OpenAI SDK: short keep-alive so we
+// don't reuse a stale socket the peer already closed (the root cause of
+// "Premature close"), and long body/headers timeouts so slow streamed
+// responses aren't aborted.
+setGlobalDispatcher(
+  new Agent({
+    connect: { timeout: 30_000 },
+    keepAliveTimeout: 4_000,
+    keepAliveMaxTimeout: 10_000,
+    headersTimeout: 600_000,
+    bodyTimeout: 600_000,
+  })
+);
+
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'path';

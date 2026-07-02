@@ -1,9 +1,14 @@
 import OpenAI from 'openai';
+import https from 'node:https';
+
+// Fresh connection per request (keep-alive off) avoids "Premature close" from
+// stale/reused sockets that some cloud hosts (e.g. Railway) drop.
+const agent = new https.Agent({ keepAlive: false });
 
 function client(apiKey) {
   if (!apiKey) throw new Error('OpenAI API key is not configured.');
   // Longer timeout + extra retries for long code-gen responses on flaky networks.
-  return new OpenAI({ apiKey, maxRetries: 4, timeout: 120000 });
+  return new OpenAI({ apiKey, maxRetries: 4, timeout: 120000, httpAgent: agent });
 }
 
 // Chat completion → text. `effort` is ignored (Anthropic-only concept).
